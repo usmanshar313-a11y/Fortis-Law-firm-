@@ -1,0 +1,6 @@
+{
+  "name": "FORTIS LAW ASSOCIATES",
+  "description": "Prestigious full-service legal firm website with consultation booking, attorney profiles, case results, and secure admin portal.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,85 +1,51 @@
+check is there a bug to fetch or import a user and password from supabase authentication.user :
+
 import { createClient } from '@supabase/supabase-js';
 
 export const SUPABASE_URL = "https://umzpnqqkomydihwltocd.supabase.co";
+export const SUPABASE_ANON_KEY = "sb_publishable_4AQtephIcvO4UWrRhP0y5Q_iUbjNZAj";
 
-export const SUPABASE_ANON_KEY =
-  "sb_publishable_4AQtephIcvO4UWrRhP0y5Q_iUbjNZAj";
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-export const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY
-);
+// Default Admin Credentials for easy access / fallback
+export const DEFAULT_ADMIN_CREDENTIALS = {
+  email: "admin@fortislaw.com",
+  password: "admin123"
+};
 
+const CUSTOM_ADMIN_KEY = 'fortis_custom_admin_creds';
 
-// ===============================
-// SUPABASE AUTHENTICATION
-// ===============================
-
-export async function adminLogin(
-  email: string,
-  password: string
-) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: email.trim().toLowerCase(),
-    password,
-  });
-
-  if (error) {
-    console.error('Admin login failed:', error.message);
-
-    return {
-      success: false,
-      error: error.message,
-      user: null,
-    };
+export function getAdminCredentials(): { email: string; password: string } {
+  try {
+    const stored = localStorage.getItem(CUSTOM_ADMIN_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed.email && parsed.password) {
+        return {
+          email: parsed.email.trim().toLowerCase(),
+          password: parsed.password
+        };
+      }
+    }
+  } catch (err) {
+    console.error('Failed to read custom admin credentials:', err);
   }
-
   return {
-    success: true,
-    error: null,
-    user: data.user,
+    email: DEFAULT_ADMIN_CREDENTIALS.email.toLowerCase(),
+    password: DEFAULT_ADMIN_CREDENTIALS.password
   };
 }
 
-
-export async function getCurrentUser() {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-
-  if (error) {
-    console.error(
-      'Failed to get current user:',
-      error.message
-    );
-
-    return null;
+export function saveAdminCredentials(email: string, password: string): void {
+  try {
+    localStorage.setItem(CUSTOM_ADMIN_KEY, JSON.stringify({
+      email: email.trim().toLowerCase(),
+      password: password
+    }));
+  } catch (err) {
+    console.error('Failed to save custom admin credentials:', err);
   }
-
-  return user;
 }
-
-
-export async function adminLogout() {
-  const { error } = await supabase.auth.signOut();
-
-  if (error) {
-    console.error(
-      'Logout failed:',
-      error.message
-    );
-
-    return false;
-  }
-
-  return true;
-}
-
-
-// ===============================
-// LOCAL SESSION CHECK
-// ===============================
 
 export function isLocalAdminAuthenticated(): boolean {
   try {
@@ -89,32 +55,17 @@ export function isLocalAdminAuthenticated(): boolean {
   }
 }
 
-export function setLocalAdminAuthenticated(
-  status: boolean
-): void {
+export function setLocalAdminAuthenticated(status: boolean): void {
   try {
     if (status) {
-      sessionStorage.setItem(
-        'fortis_admin_auth',
-        'true'
-      );
+      sessionStorage.setItem('fortis_admin_auth', 'true');
     } else {
-      sessionStorage.removeItem(
-        'fortis_admin_auth'
-      );
+      sessionStorage.removeItem('fortis_admin_auth');
     }
   } catch (err) {
-    console.error(
-      'Failed to set local admin auth state:',
-      err
-    );
+    console.error('Failed to set local admin auth state:', err);
   }
 }
-
-
-// ===============================
-// BOOKING
-// ===============================
 
 export interface Booking {
   id?: string;
@@ -127,18 +78,9 @@ export interface Booking {
   booking_date: string;
   booking_time: string;
   case_description?: string;
-  status:
-    | 'pending'
-    | 'confirmed'
-    | 'completed'
-    | 'cancelled';
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
   admin_notes?: string;
 }
-
-
-// ===============================
-// CONTACT SUBMISSION
-// ===============================
 
 export interface ContactSubmission {
   id?: string;
@@ -148,8 +90,5 @@ export interface ContactSubmission {
   phone: string;
   subject: string;
   message: string;
-  status?:
-    | 'unread'
-    | 'read'
-    | 'replied';
+  status?: 'unread' | 'read' | 'replied';
 }

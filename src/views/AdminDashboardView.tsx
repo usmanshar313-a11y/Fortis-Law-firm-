@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { PageRoute, Language } from '../types';
-import { supabase, Booking } from '../lib/supabase';
+import {
+  supabase,
+  Booking,
+  isLocalAdminAuthenticated,
+  setLocalAdminAuthenticated,
+  getAdminCredentials,
+  saveAdminCredentials
+} from '../lib/supabase';
 import { UI_STRINGS } from '../data/translations';
-import { Shield, Lock, Calendar, CheckCircle2, Clock, XCircle, Trash2, Edit3, LogOut, RefreshCw, Search, Users, AlertCircle } from 'lucide-react';
+import { Shield, Lock, Calendar, CheckCircle2, Clock, XCircle, Trash2, Edit3, LogOut, RefreshCw, Search, Users, AlertCircle, Key, Settings, Check } from 'lucide-react';
 
 interface AdminDashboardViewProps {
   setRoute: (route: PageRoute) => void;
@@ -20,11 +27,18 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ setRoute
   const [adminNotesInput, setAdminNotesInput] = useState<string>('');
   const [authVerified, setAuthVerified] = useState<boolean>(false);
 
-  // Check Supabase Auth Session
+  // Admin Credentials Management Modal
+  const [showSecurityModal, setShowSecurityModal] = useState<boolean>(false);
+  const [currentAdminCreds, setCurrentAdminCreds] = useState(getAdminCredentials());
+  const [editEmailInput, setEditEmailInput] = useState<string>('');
+  const [editPasswordInput, setEditPasswordInput] = useState<string>('');
+  const [securitySuccess, setSecuritySuccess] = useState<string | null>(null);
+
+  // Check Supabase Auth Session or Local Admin Auth
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      if (!session && !isLocalAdminAuthenticated()) {
         // Redirect if not authenticated
         setRoute('admin-login');
       } else {
@@ -34,6 +48,27 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ setRoute
     };
     checkSession();
   }, []);
+
+  useEffect(() => {
+    const creds = getAdminCredentials();
+    setCurrentAdminCreds(creds);
+    setEditEmailInput(creds.email);
+    setEditPasswordInput(creds.password);
+  }, [showSecurityModal]);
+
+  const handleUpdateCredentials = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editEmailInput.trim() || !editPasswordInput.trim()) return;
+
+    saveAdminCredentials(editEmailInput.trim(), editPasswordInput.trim());
+    const updated = getAdminCredentials();
+    setCurrentAdminCreds(updated);
+    setSecuritySuccess('Admin email and password updated successfully!');
+    setTimeout(() => {
+      setSecuritySuccess(null);
+      setShowSecurityModal(false);
+    }, 2000);
+  };
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -93,6 +128,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ setRoute
   };
 
   const handleSignOut = async () => {
+    setLocalAdminAuthenticated(false);
     await supabase.auth.signOut();
     setRoute('admin-login');
   };
@@ -141,6 +177,15 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ setRoute
 
         <div className="flex items-center space-x-3">
           <button
+            onClick={() => setShowSecurityModal(true)}
+            className="px-3.5 py-2 rounded-full bg-[#F5F5F5] dark:bg-[#111111] hover:bg-[#E5E5E5] dark:hover:bg-[#2C2C2E] border border-[#E5E5E5] dark:border-[#2C2C2E] text-xs text-[#1A1A1A] dark:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Change Admin Email & Password"
+          >
+            <Key className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Admin Credentials</span>
+          </button>
+
+          <button
             onClick={fetchBookings}
             className="px-3.5 py-2 rounded-full bg-[#F5F5F5] dark:bg-[#111111] hover:bg-[#E5E5E5] dark:hover:bg-[#2C2C2E] border border-[#E5E5E5] dark:border-[#2C2C2E] text-xs text-[#1A1A1A] dark:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
           >
@@ -157,6 +202,85 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ setRoute
           </button>
         </div>
       </div>
+
+      {/* Security / Credentials Management Modal */}
+      {showSecurityModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="card-modern max-w-md w-full p-6 rounded-2xl space-y-4 shadow-2xl relative">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E5E5E5] dark:border-[#2C2C2E]">
+              <div className="flex items-center space-x-2">
+                <Shield className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-serif font-bold text-lg text-[#1A1A1A] dark:text-white">
+                  Admin Access Credentials
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowSecurityModal(false)}
+                className="text-[#6E6E73] hover:text-[#1A1A1A] dark:hover:text-white text-xs cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {securitySuccess && (
+              <div className="p-3 rounded-xl bg-emerald-600 text-white text-xs flex items-center space-x-2">
+                <Check className="w-4 h-4 shrink-0" />
+                <span>{securitySuccess}</span>
+              </div>
+            )}
+
+            <p className="text-xs text-[#6E6E73]">
+              Set the exact email and password required to access the Admin Portal. Only someone with these credentials will be able to sign in.
+            </p>
+
+            <form onSubmit={handleUpdateCredentials} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-[#1A1A1A] dark:text-[#F5F5F5] font-medium mb-1">
+                  Admin Email
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={editEmailInput}
+                  onChange={(e) => setEditEmailInput(e.target.value)}
+                  placeholder="admin@fortislaw.com"
+                  className="input-modern"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#1A1A1A] dark:text-[#F5F5F5] font-medium mb-1">
+                  Secret Admin Password
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editPasswordInput}
+                  onChange={(e) => setEditPasswordInput(e.target.value)}
+                  placeholder="MySuperSecretPass123"
+                  className="input-modern font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSecurityModal(false)}
+                  className="px-4 py-2 rounded-xl bg-[#F5F5F5] dark:bg-[#2C2C2E] text-[#1A1A1A] dark:text-white text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors cursor-pointer"
+                >
+                  Save New Credentials
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Overview Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

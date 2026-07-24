@@ -1,5 +1,3 @@
-check is there a bug to fetch or import a user and password from supabase authentication.user :
-
 import { createClient } from '@supabase/supabase-js';
 
 export const SUPABASE_URL = "https://umzpnqqkomydihwltocd.supabase.co";
@@ -7,10 +5,10 @@ export const SUPABASE_ANON_KEY = "sb_publishable_4AQtephIcvO4UWrRhP0y5Q_iUbjNZAj
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Default Admin Credentials for easy access / fallback
+// Default Admin Credentials
 export const DEFAULT_ADMIN_CREDENTIALS = {
-  email: "admin@fortislaw.com",
-  password: "admin123"
+  email: "excuses.heckles.94@icloud.com",
+  password: "Sd2-@3cd-eas(*&8mss_s0"
 };
 
 const CUSTOM_ADMIN_KEY = 'fortis_custom_admin_creds';

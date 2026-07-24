@@ -90,3 +90,60 @@ export interface ContactSubmission {
   message: string;
   status?: 'unread' | 'read' | 'replied';
 }
+
+const LOCAL_BOOKINGS_KEY = 'fortis_local_bookings';
+
+export function getLocalBookings(): Booking[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_BOOKINGS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    console.error('Failed to get local bookings:', err);
+    return [];
+  }
+}
+
+export function saveLocalBooking(booking: Booking): Booking {
+  try {
+    const current = getLocalBookings();
+    const finalBooking: Booking = {
+      ...booking,
+      id: booking.id || `bk_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      created_at: booking.created_at || new Date().toISOString()
+    };
+
+    const existsIndex = current.findIndex(b => b.id === finalBooking.id);
+    if (existsIndex >= 0) {
+      current[existsIndex] = { ...current[existsIndex], ...finalBooking };
+    } else {
+      current.unshift(finalBooking);
+    }
+
+    localStorage.setItem(LOCAL_BOOKINGS_KEY, JSON.stringify(current));
+    return finalBooking;
+  } catch (err) {
+    console.error('Failed to save local booking:', err);
+    return booking;
+  }
+}
+
+export function updateLocalBookingStatus(id: string, status: Booking['status'], adminNotes?: string): void {
+  try {
+    const current = getLocalBookings();
+    const updated = current.map(b => (b.id === id ? { ...b, status, admin_notes: adminNotes ?? b.admin_notes } : b));
+    localStorage.setItem(LOCAL_BOOKINGS_KEY, JSON.stringify(updated));
+  } catch (err) {
+    console.error('Failed to update local booking:', err);
+  }
+}
+
+export function deleteLocalBooking(id: string): void {
+  try {
+    const current = getLocalBookings();
+    const filtered = current.filter(b => b.id !== id);
+    localStorage.setItem(LOCAL_BOOKINGS_KEY, JSON.stringify(filtered));
+  } catch (err) {
+    console.error('Failed to delete local booking:', err);
+  }
+}
+

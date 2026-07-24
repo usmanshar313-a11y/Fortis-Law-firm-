@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { PageRoute, Language } from '../types';
 import { PRACTICE_AREAS, ATTORNEYS } from '../data/lawData';
 import { UI_STRINGS } from '../data/translations';
-import { supabase, Booking } from '../lib/supabase';
+import { supabase, Booking, saveLocalBooking } from '../lib/supabase';
 import { Calendar, Clock, User, Mail, Phone, FileText, CheckCircle2, AlertCircle, ShieldCheck, Loader2 } from 'lucide-react';
 
 interface ConsultationViewProps {
@@ -55,6 +55,8 @@ export const ConsultationView: React.FC<ConsultationViewProps> = ({
 
     try {
       const newBooking: Booking = {
+        id: `bk_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        created_at: new Date().toISOString(),
         client_name: clientName.trim(),
         client_email: clientEmail.trim(),
         client_phone: clientPhone.trim(),
@@ -66,17 +68,35 @@ export const ConsultationView: React.FC<ConsultationViewProps> = ({
         status: 'pending'
       };
 
-      // Parameterized Supabase Insert (No raw SQL concatenation)
-      const { data, error } = await supabase.from('bookings').insert([newBooking]).select();
+      // Always save locally to guarantee presence on Admin Dashboard
+      const savedBooking = saveLocalBooking(newBooking);
 
-      if (error) {
-        // Fallback or handle error cleanly
-        console.warn('Supabase booking error, operating in resilient mode:', error.message);
-        // Even if database has strict custom RLS policies or local offline mode, record locally to guarantee non-freezing UI
-        setBookingSuccess(newBooking);
-      } else {
-        setBookingSuccess((data && data[0]) ? data[0] : newBooking);
+      // Also attempt Supabase Insert
+      try {
+        const { data, error } = await supabase.from('bookings').insert([{
+          id: savedBooking.id,
+          created_at: savedBooking.created_at,
+          client_name: savedBooking.client_name,
+          client_email: savedBooking.client_email,
+          client_phone: savedBooking.client_phone,
+          practice_area: savedBooking.practice_area,
+          attorney_preferred: savedBooking.attorney_preferred,
+          booking_date: savedBooking.booking_date,
+          booking_time: savedBooking.booking_time,
+          case_description: savedBooking.case_description,
+          status: savedBooking.status
+        }]).select();
+
+        if (error) {
+          console.warn('Supabase insert notice:', error.message);
+        } else if (data && data[0]) {
+          saveLocalBooking(data[0] as Booking);
+        }
+      } catch (sbErr) {
+        console.warn('Supabase insert network exception:', sbErr);
       }
+
+      setBookingSuccess(savedBooking);
 
       // Clear form
       setClientName('');

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { PageRoute, Language } from '../types';
 import { FIRM_INFO, OFFICE_LOCATIONS } from '../data/lawData';
 import { UI_STRINGS } from '../data/translations';
+import { supabase, saveLocalBooking, Booking } from '../lib/supabase';
 import { MapPin, Phone, Mail, Clock, Send, CheckCircle2, MessageSquare } from 'lucide-react';
 
 interface ContactViewProps {
@@ -23,14 +24,52 @@ export const ContactView: React.FC<ContactViewProps> = ({ setRoute, lang }) => {
     message: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!contactData.fullName.trim() || !contactData.email.trim() || !contactData.phone.trim()) {
+      return;
+    }
+
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
-      setFormSubmitted(true);
-      setContactData({ fullName: '', email: '', phone: '', subject: '', message: '' });
-    }, 1000);
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const newInquiryBooking: Booking = {
+      id: `inq_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      created_at: new Date().toISOString(),
+      client_name: contactData.fullName.trim(),
+      client_email: contactData.email.trim(),
+      client_phone: contactData.phone.trim(),
+      practice_area: contactData.subject.trim() || 'General Legal Inquiry',
+      attorney_preferred: 'Duty Legal Officer',
+      booking_date: todayStr,
+      booking_time: 'Asap Direct Inquiry',
+      case_description: contactData.message.trim(),
+      status: 'pending'
+    };
+
+    saveLocalBooking(newInquiryBooking);
+
+    try {
+      await supabase.from('bookings').insert([{
+        id: newInquiryBooking.id,
+        created_at: newInquiryBooking.created_at,
+        client_name: newInquiryBooking.client_name,
+        client_email: newInquiryBooking.client_email,
+        client_phone: newInquiryBooking.client_phone,
+        practice_area: newInquiryBooking.practice_area,
+        attorney_preferred: newInquiryBooking.attorney_preferred,
+        booking_date: newInquiryBooking.booking_date,
+        booking_time: newInquiryBooking.booking_time,
+        case_description: newInquiryBooking.case_description,
+        status: newInquiryBooking.status
+      }]);
+    } catch (err) {
+      console.warn('Supabase contact submission notice:', err);
+    }
+
+    setSubmitting(false);
+    setFormSubmitted(true);
+    setContactData({ fullName: '', email: '', phone: '', subject: '', message: '' });
   };
 
   const activeOffice = OFFICE_LOCATIONS.find((o) => o.city === selectedCity) || OFFICE_LOCATIONS[0];

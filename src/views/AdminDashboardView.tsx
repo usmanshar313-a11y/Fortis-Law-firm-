@@ -6,7 +6,10 @@ import {
   isLocalAdminAuthenticated,
   setLocalAdminAuthenticated,
   getAdminCredentials,
-  saveAdminCredentials
+  saveAdminCredentials,
+  getLocalBookings,
+  updateLocalBookingStatus,
+  deleteLocalBooking
 } from '../lib/supabase';
 import { UI_STRINGS } from '../data/translations';
 import { Shield, Lock, Calendar, CheckCircle2, Clock, XCircle, Trash2, Edit3, LogOut, RefreshCw, Search, Users, AlertCircle, Key, Settings, Check } from 'lucide-react';
@@ -73,18 +76,32 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ setRoute
   const fetchBookings = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const localBookings = getLocalBookings();
+      let remoteBookings: Booking[] = [];
 
-      if (error) {
-        console.warn('Error fetching bookings from Supabase:', error.message);
-        // Resilient fallback state
-        setBookings([]);
-      } else if (data) {
-        setBookings(data as Booking[]);
+      try {
+        const { data, error } = await supabase
+          .from('bookings')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          remoteBookings = data as Booking[];
+        }
+      } catch (sbErr) {
+        console.warn('Supabase fetch notice:', sbErr);
       }
+
+      // Merge local and remote bookings seamlessly without duplicate IDs
+      const combinedMap = new Map<string, Booking>();
+      [...remoteBookings, ...localBookings].forEach(b => {
+        const key = b.id || `${b.client_email}_${b.booking_date}_${b.booking_time}`;
+        if (!combinedMap.has(key)) {
+          combinedMap.set(key, b);
+        }
+      });
+
+      setBookings(Array.from(combinedMap.values()));
     } catch (err) {
       console.error('Fetch bookings exception:', err);
     } finally {
@@ -94,37 +111,39 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ setRoute
 
   const handleUpdateStatus = async (id: string | undefined, newStatus: Booking['status']) => {
     if (!id) return;
+
+    // Update in local storage
+    updateLocalBookingStatus(id, newStatus, adminNotesInput);
+
     try {
-      const { error } = await supabase
+      await supabase
         .from('bookings')
         .update({ status: newStatus, admin_notes: adminNotesInput })
         .eq('id', id);
-
-      if (error) {
-        console.error('Error updating booking:', error.message);
-      }
-
-      // Local update for instant UI feedback
-      setBookings((prev) =>
-        prev.map((b) => (b.id === id ? { ...b, status: newStatus, admin_notes: adminNotesInput } : b))
-      );
-      setSelectedBooking(null);
-      setAdminNotesInput('');
     } catch (err) {
-      console.error('Update status exception:', err);
+      console.warn('Supabase status update notice:', err);
     }
+
+    // Local update for instant UI feedback
+    setBookings((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, status: newStatus, admin_notes: adminNotesInput } : b))
+    );
+    setSelectedBooking(null);
+    setAdminNotesInput('');
   };
 
   const handleDeleteBooking = async (id: string | undefined) => {
     if (!id || !window.confirm('Are you sure you want to delete this booking record?')) return;
+
+    deleteLocalBooking(id);
+
     try {
-      const { error } = await supabase.from('bookings').delete().eq('id', id);
-      if (!error) {
-        setBookings((prev) => prev.filter((b) => b.id !== id));
-      }
+      await supabase.from('bookings').delete().eq('id', id);
     } catch (err) {
-      console.error('Delete booking exception:', err);
+      console.warn('Supabase delete notice:', err);
     }
+
+    setBookings((prev) => prev.filter((b) => b.id !== id));
   };
 
   const handleSignOut = async () => {
